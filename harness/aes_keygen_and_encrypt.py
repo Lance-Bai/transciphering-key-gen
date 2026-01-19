@@ -24,6 +24,7 @@ def main():
     DATASET_PATH = params.datadir() / f"db.txt"
     AES_KEY_PATH = params.datadir() / f"aes_key.hex"
     AES_KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    IV_PATH = params.datadir() / f"aes_iv.hex"
     DATASET_ENC_PATH = params.datadir() / f"db.hex"
 
     print(DATASET_PATH)
@@ -31,29 +32,31 @@ def main():
     # 1) Generate a 128-bit AES key from an integer seed
     # We convert the int to string/bytes then hash it to get a 16-byte key
     aes_key = hashlib.sha256(str(seed).encode()).digest()[:16]
-    print(aes_key.hex())
     
     # 1) Load database 
     db = [int(line) for line in DATASET_PATH.read_text().strip().split('\n')]
+    if len(db) % 8:
+        raise ValueError("File must contain blocks of size 128 bits, otherwise we need to pad.")
+
+    # 2) Encode into as many plaintext blocks as needed (16 bytes each)
+    packer = struct.Struct('>' + 'H' * len(db))
+    plaintext_blocks = packer.pack(*db)
 
     if params.get_size() == 0:
-        # Do ECB encryption for toy instance
-        if len(db) != 8:
-            raise ValueError("File must contain exactly 8 16-bit integers, otherwise we need to pad.")
-        # 2) Encode into a plaintext block (16 bytes)
-        # 'H' is 2 bytes (16 bits) in struct. >HHHHHHHH is big-endian
-        plaintext_block = struct.pack('>HHHHHHHH', *db)
-
         # 3) Encrypt using AES ECB mode
         aes = pyaes.AES(aes_key)
-        ciphertext_block = aes.encrypt(plaintext_block)
+        ciphertext_blocks = aes.encrypt(plaintext_blocks)
     else:
-        # Do CTR encryption for larger instances
-        print('Not implemented yet for size > toy')
+        # 3) Encrypt using AES CTR mode
+        # Generate a random IV
+        IV = hashlib.sha256(b"iv"+str(seed).encode()).digest()[:16]
+        IV_PATH.write_text(IV.hex())
+        aes = pyaes.AESModeOfOperationCTR(aes_key, counter=pyaes.Counter(int.from_bytes(IV, byteorder='big')))
+        ciphertext_blocks = aes.encrypt(plaintext_blocks)
 
     # 4) Store the AES key and the ciphertext
     AES_KEY_PATH.write_text(aes_key.hex())
-    DATASET_ENC_PATH.write_text(bytes(ciphertext_block).hex())
+    DATASET_ENC_PATH.write_text(bytes(ciphertext_blocks).hex())
 
 if __name__ == "__main__":
     main()

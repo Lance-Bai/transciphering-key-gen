@@ -23,28 +23,36 @@ def main():
     __, params, __, __, __ = parse_submission_arguments('Generate dataset for FHE benchmark.')
     DATASET_ENC_PATH = params.datadir() / f"db.hex"
     AES_KEY_PATH = params.datadir() / f"aes_key.hex"
+    IV_PATH = params.datadir() / f"aes_iv.hex"
     OUT_PATH = params.datadir() / f"expected.txt"
     MAX_PATH = params.datadir() / f"max_value.txt"
     IP_PATH = params.datadir() / f"inner_product.txt"
 
     with open(AES_KEY_PATH, "r") as f:
-            aes_key = bytes.fromhex(f.read().strip())
+        aes_key = bytes.fromhex(f.read().strip())
+
+    # 1) load dataset containing the encrypted AES block
+    with open(DATASET_ENC_PATH, "r") as f:
+        ciphertext_blocks = bytes.fromhex(f.read().strip())
 
     if params.get_size() == 0:
-        # 1) load dataset containing the encrypted AES block
-        with open(DATASET_ENC_PATH, "r") as f:
-            ctxt = bytes.fromhex(f.read().strip())
-
         # 2) Decrypt using AES ECB mode
         aes_dec = pyaes.AES(aes_key)
-        decrypted_block = aes_dec.decrypt(ctxt)
-        
-        # 3) Unpack the 16-byte block back into 8 integers
-        decrypted_bytes = bytes(decrypted_block)
-        result = struct.unpack('>HHHHHHHH', decrypted_bytes)
+        decrypted_block = aes_dec.decrypt(ciphertext_blocks)
 
     else:
-        print('Not implemented yet for size > toy')
+        # 2) Decrypt using AES CTR mode
+        # Read IV from file
+        with open(IV_PATH, "r") as f:
+            IV = bytes.fromhex(f.read().strip())
+
+        aes_dec = pyaes.AESModeOfOperationCTR(aes_key, counter=pyaes.Counter(int.from_bytes(IV, byteorder='big')))
+        decrypted_block = aes_dec.decrypt(ciphertext_blocks)
+
+    # 3) Unpack the 16-byte blocks back into integers
+    decrypted_bytes = bytes(decrypted_block)
+    packer = struct.Struct('>' + 'H' * params.get_db_bound())
+    result = packer.unpack(decrypted_bytes)
 
     # 4) write to expected.txt (overwrites if it already exists)
     result = '\n'.join(str(value) for value in result)
