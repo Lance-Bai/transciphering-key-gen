@@ -277,7 +277,6 @@ impl AutomorphKey<ABox<[c64]>> {
             fft_type,
         );
         
-        // 将 u64 数据转换回 c64
         let mut ksk_mut = ksk;
         let mut idx = 0;
         for c64_val in ksk_mut.as_mut_fourier_glev_ciphertext_list().as_mut() {
