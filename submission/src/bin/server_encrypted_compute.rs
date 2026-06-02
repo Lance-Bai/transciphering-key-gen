@@ -205,9 +205,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("lwe_ciphertext_list length is not a multiple of 16".into());
     }
     let num_chunks = total_bits / 16;
-    if num_chunks != 8 {
-        return Err("expected 8 chunks of 16 bits".into());
-    }
+    // if num_chunks != 8 {
+    //     return Err("expected 8 chunks of 16 bits".into());
+    // }
 
     let mut ggsw_chunks: Vec<GgswCiphertextList<Vec<u64>>> = Vec::with_capacity(num_chunks);
     for input_chunk in lwe_ciphertext_list.chunks_exact(16) {
@@ -300,7 +300,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         &lwe_chunks[1],
         &mut mid_lwe_list_2,
     );
-    for i in 2_usize..8 {
+    for i in 2_usize..num_chunks {
         let mut vec_glev = vec![
             GlweCiphertextList::new(
                 0,
