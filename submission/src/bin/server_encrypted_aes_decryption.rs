@@ -25,6 +25,253 @@ use tfhe::core_crypto::fft_impl::fft64::{
 };
 use tfhe::core_crypto::prelude::*;
 
+pub fn aes_to_lwe_trasnciphering_2<KSKeyCont>(
+    ciphertext: &[u8; 16],
+    parms: &AesParam<u64>,
+    all_rd_key: AllRdKeys,
+    fft_bsk: FourierLweBootstrapKey<ABox<[c64]>>,
+    fft_ksk: FourierGlweKeyswitchKey<KSKeyCont>,
+    auto_key: HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    ss_key: FourierGgswCiphertextList<Vec<c64>>,
+) -> LweCiphertextList<Vec<u64>>
+where
+    KSKeyCont: Container<Element = c64>,
+{
+    let fft_bsk_lwe_size = fft_bsk.clone().output_lwe_dimension().to_lwe_size();
+    let ciphertext_modulus = parms.ciphertext_modulus();
+let mut he_state = LweCiphertextList::new(
+            0u64,
+            fourier_bsk.output_lwe_dimension().to_lwe_size(),
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+        let mut he_state_mult_by_2 = LweCiphertextList::new(
+            0u64,
+            fourier_bsk.output_lwe_dimension().to_lwe_size(),
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+        let mut he_state_mult_by_3 = LweCiphertextList::new(
+            0u64,
+            fourier_bsk.output_lwe_dimension().to_lwe_size(),
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+        let mut he_state_ks = LweCiphertextList::new(
+            0u64,
+            lwe_sk_after_ks.lwe_dimension().to_lwe_size(),
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+
+        let vec_keyed_sbox_round_1 = generate_vec_keyed_lut_accumulator(
+            aes.get_keyed_sbox(0),
+            u64::BITS as usize - 1,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let vec_keyed_sbox_round_1_mult_by_2 = generate_vec_keyed_lut_accumulator(
+            aes.get_keyed_sbox_mult_by_2(0),
+            u64::BITS as usize - 1,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let vec_keyed_sbox_round_1_mult_by_3 = generate_vec_keyed_lut_accumulator(
+            aes.get_keyed_sbox_mult_by_3(0),
+            u64::BITS as usize - 1,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+
+        // Bench
+        he_state.as_mut().fill(0u64);
+        for (bit_idx, mut he_bit) in he_state.iter_mut().enumerate() {
+            let byte_idx = bit_idx / 8;
+            let pt = (message[byte_idx] & (1 << bit_idx)) >> bit_idx;
+            *he_bit.get_mut_body().data += (pt as u64) << 63;
+        }
+
+        { // r = 1
+            // Keyed LUT
+            group.bench_function(
+                BenchmarkId::new(
+                    format!("Round 1 Keyed-LUT"),
+                    id,
+                ),
+                |b| b.iter(|| {
+                    known_rotate_keyed_lut(
+                        black_box(message),
+                        black_box(&vec_keyed_sbox_round_1),
+                        black_box(&mut he_state),
+                    );
+                    known_rotate_keyed_lut(
+                        black_box(message),
+                        black_box(&vec_keyed_sbox_round_1_mult_by_2),
+                        black_box(&mut he_state_mult_by_2),
+                    );
+                    known_rotate_keyed_lut(
+                        black_box(message),
+                        black_box(&vec_keyed_sbox_round_1_mult_by_3),
+                        black_box(&mut he_state_mult_by_3),
+                    );
+                }),
+            );
+
+            // ShiftRows, MixColumns, AddRoundKey
+            group.bench_function(
+                BenchmarkId::new(
+                    "Ruond 1 ShiftRows, MixColumns and AddRoundKey",
+                    id,
+                ),
+                |b| b.iter(|| {
+                    // ShiftRows
+                    he_shift_rows(black_box(&mut he_state));
+                    he_shift_rows(black_box(&mut he_state_mult_by_2));
+                    he_shift_rows(black_box(&mut he_state_mult_by_3));
+
+                    // MixColumns
+                    he_mix_columns_precomp(
+                        black_box(&mut he_state),
+                        black_box(&he_state_mult_by_2),
+                        black_box(&he_state_mult_by_3),
+                    );
+
+                    // AddRoundKey
+                    he_add_round_key(
+                        black_box(&mut he_state),
+                        black_box(&he_round_keys[1]),
+                    );
+                }),
+            );
+        }
+
+        for r in 2..NUM_ROUNDS {
+            // LWE KS
+            group.bench_function(
+                BenchmarkId::new(
+                    format!("Round {r} LWE Keyswitching"),
+                    id,
+                ),
+                |b| b.iter(|| {
+                    for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
+                        keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                            black_box(&lwe),
+                            black_box(&mut lwe_ks),
+                            black_box(&fourier_ksk),
+                        );
+                    }
+                })
+            );
+
+            // SubBytes
+            group.bench_function(
+                BenchmarkId::new(
+                    format!("Round {r} SubBytes"),
+                    id,
+                ),
+                |b| b.iter(|| {
+                    he_sub_bytes_8_to_24_by_patched_wwlp_cbs(
+                        black_box(&he_state_ks),
+                        black_box(&mut he_state),
+                        black_box(&mut he_state_mult_by_2),
+                        black_box(&mut he_state_mult_by_3),
+                        black_box(fourier_bsk),
+                        black_box(&auto_keys),
+                        black_box(ss_key),
+                        black_box(cbs_base_log),
+                        black_box(cbs_level),
+                        black_box(log_lut_count),
+                    );
+                })
+            );
+
+            // Linear
+            group.bench_function(
+                BenchmarkId::new(
+                    format!("Round {r} ShiftRows, MixColumns, AddRoundKey"),
+                    id,
+                ),
+                |b| b.iter(|| {
+                    // ShiftRows
+                    he_shift_rows(black_box(&mut he_state));
+                    he_shift_rows(black_box(&mut he_state_mult_by_2));
+                    he_shift_rows(black_box(&mut he_state_mult_by_3));
+
+                    // MixColumns
+                    he_mix_columns_precomp(
+                        black_box(&mut he_state),
+                        black_box(&he_state_mult_by_2),
+                        black_box(&he_state_mult_by_3),
+                    );
+
+                    // AddRoundKey
+                    he_add_round_key(
+                        black_box(&mut he_state),
+                        black_box(&he_round_keys[r]),
+                    );
+                })
+            );
+        }
+
+        // LWE KS
+        group.bench_function(
+            BenchmarkId::new(
+                format!("Final Round LWE Keyswitching"),
+                id,
+            ),
+            |b| b.iter(|| {
+                for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
+                    keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                        black_box(&lwe),
+                        black_box(&mut lwe_ks),
+                        black_box(&fourier_ksk),
+                    );
+                }
+            }));
+
+        // SubBytes
+        group.bench_function(
+            BenchmarkId::new(
+                format!("Final Round SubBytes"),
+                id,
+            ),
+            |b| b.iter(|| {
+                he_sub_bytes_by_patched_wwlp_cbs(
+                    black_box(&he_state_ks),
+                    black_box(&mut he_state),
+                    black_box(fourier_bsk),
+                    black_box(&auto_keys),
+                    black_box(ss_key),
+                    black_box(cbs_base_log),
+                    black_box(cbs_level),
+                    black_box(log_lut_count),
+                );
+            })
+        );
+
+        group.bench_function(
+            BenchmarkId::new(
+                format!("Final Round ShiftRows, AddRoundKey"),
+                id,
+            ),
+            |b| b.iter(|| {
+                // ShiftRows
+                he_shift_rows(&mut he_state);
+
+                // AddRoundKey
+                he_add_round_key(&mut he_state, &he_round_keys[NUM_ROUNDS]);
+            })
+        );
+
+}
+
+
 pub fn aes_to_lwe_trasnciphering<KSKeyCont>(
     ciphertext: &[u8; 16],
     parms: &AesParam<u64>,
