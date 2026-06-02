@@ -4,6 +4,8 @@ use std::fs;
 
 use aes::cipher;
 use aligned_vec::ABox;
+use auto_base_conv::AES_SET_1;
+use auto_base_conv::AES_SET_2;
 use auto_base_conv::convert_lwe_to_glwe_const;
 use auto_base_conv::fourier_glev_ciphertext;
 use auto_base_conv::glwe_keyswitch;
@@ -77,7 +79,6 @@ fn max_of_two<Scalar, Cont, MutCont>(
     {
         convert_lwe_to_glwe_const(&lwe_a, &mut glwe_b);
         convert_lwe_to_glwe_const(&lwe_b, &mut glwe_a);
-        convert_lwe_to_glwe_const(&lwe_b, &mut glwe_a);
         for (ggsw_a, ggsw_b) in input_a.iter().rev().zip(input_b.iter().rev()) {
             convert_standard_ggsw_ciphertext_to_fourier(&ggsw_a, &mut fourier_ggsw_a);
             convert_standard_ggsw_ciphertext_to_fourier(&ggsw_b, &mut fourier_ggsw_b);
@@ -111,7 +112,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(&target_dir)?;
 
     // load params
-    let param = &*AES_TIGHT;
+    let param = AES_SET_2.clone(); //AES_TIGHT
     let glwe_size = param.glwe_dimension().to_glwe_size();
     let polynomial_size = param.polynomial_size();
     let ks_base_log = param.glwe_ds_base_log();
@@ -142,7 +143,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auto_keys_serialize: HashMap<usize, AutomorphKeySerializable> =
         bincode::deserialize(&auto_keys_bytes)?;
 
-    let param = &*AES_TIGHT;
+    let param = AES_SET_2.clone(); 
 
     // Convert serializable automorph keys back to standard form
     let auto_keys: HashMap<usize, AutomorphKey<ABox<[c64]>>> = auto_keys_serialize

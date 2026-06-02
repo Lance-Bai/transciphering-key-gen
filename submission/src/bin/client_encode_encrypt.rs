@@ -1,7 +1,7 @@
 use core::error;
 use std::{env, fs};
 
-use auto_base_conv::{generate_vec_keyed_lut_accumulator, AesParam, AES_TIGHT};
+use auto_base_conv::{AES_SET_2, AES_TIGHT, AesParam, generate_vec_keyed_lut_accumulator};
 use submission::{
     aes_manager::Aes128Manager,
     aes_ref::*,
@@ -122,7 +122,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let glwe_sk_bytes = fs::read(&glwe_sk_path)?;
     let glwe_sk: GlweSecretKey<Vec<u64>> = bincode::deserialize(&glwe_sk_bytes)?;
 
-    let param = &*AES_TIGHT;
+    let param = AES_SET_2.clone(); //AES_TIGHT
     let mut boxed_seeder = new_seeder();
     let seeder = boxed_seeder.as_mut();
     let mut encryption_generator =
@@ -134,7 +134,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             *byte = u8::from_str_radix(hex_pair, 16)?;
         }
         let trans_key =
-            gen_transciphering_keys(param, &glwe_sk, &aes_key, &mut encryption_generator);
+            gen_transciphering_keys(&param, &glwe_sk, &aes_key, &mut encryption_generator);
 
         let ciphertext_upload_dir = format!("{}/ciphertexts_upload", io_dir);
         fs::create_dir_all(&ciphertext_upload_dir)?;
@@ -144,8 +144,12 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("Transciphering keys saved to {}", ciphertext_upload_dir);
     } else if size == "1" || size == "2" {
+        for (i, byte) in aes_key.iter_mut().enumerate() {
+            let hex_pair = &hex_string[i * 2..i * 2 + 2];
+            *byte = u8::from_str_radix(hex_pair, 16)?;
+        }
         let trans_keys_2 =
-            gen_transciphering_keys_2(param, &glwe_sk, &aes_key, &mut encryption_generator);
+            gen_transciphering_keys_2(&param, &glwe_sk, &aes_key, &mut encryption_generator);
         let ciphertext_upload_dir = format!("{}/ciphertexts_upload", io_dir);
         fs::create_dir_all(&ciphertext_upload_dir)?;
 

@@ -4,6 +4,7 @@ use std::fs;
 use std::iter::Enumerate;
 
 use aligned_vec::ABox;
+use auto_base_conv::AES_SET_2;
 use rayon::prelude::*;
 use auto_base_conv::he_add_round_key;
 use auto_base_conv::he_mix_columns_precomp;
@@ -775,7 +776,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auto_keys_serialize: HashMap<usize, AutomorphKeySerializable> =
         bincode::deserialize(&auto_keys_bytes)?;
 
-    let param = &*AES_TIGHT;
+    let param = AES_SET_2.clone();
 
     // Convert serializable automorph keys back to standard form
     let auto_keys: HashMap<usize, AutomorphKey<ABox<[c64]>>> = auto_keys_serialize
@@ -841,7 +842,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let result = aes_to_lwe_trasnciphering(
             &aes_cipher,
-            param,
+            &param,
             trans_key,
             fourier_bsk,
             fourier_glwe_ksk,
@@ -899,7 +900,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut result = aes_to_lwe_trasnciphering_2(
                     counter,
-                    param,
+                    &param,
                     &trans_key,
                     &fourier_bsk,
                     &fourier_glwe_ksk,
@@ -909,7 +910,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 for (bit_idx, mut lwe) in result.iter_mut().enumerate() {
                     let byte_idx = bit_idx / 8;
-                    let bit = (current_block[byte_idx] >> (bit_idx % 8)) & 1;
+                    let bit = (current_block[byte_idx] >> (7 - (bit_idx % 8))) & 1;
                     lwe_ciphertext_plaintext_add_assign(&mut lwe, Plaintext((bit as u64) << 63));
                 }
 
