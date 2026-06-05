@@ -1,7 +1,6 @@
-use core::error;
 use std::{env, fs};
 
-use auto_base_conv::{AES_SET_2, AES_TIGHT, AesParam, generate_vec_keyed_lut_accumulator};
+use auto_base_conv::{AES_SET_2, AesParam, generate_vec_keyed_lut_accumulator};
 use submission::{
     aes_manager::Aes128Manager,
     aes_ref::*,
@@ -13,7 +12,7 @@ use tfhe::core_crypto::{
     commons::parameters::{LweCiphertextCount, LweSize},
     entities::{LweCiphertextList, LweCiphertextListOwned, PlaintextList},
     prelude::{
-        ActivatedRandomGenerator, EncryptionRandomGenerator, GlweSecretKey, SecretRandomGenerator,
+        ActivatedRandomGenerator, EncryptionRandomGenerator, GlweSecretKey,
     },
     seeders::new_seeder,
 };

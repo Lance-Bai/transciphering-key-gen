@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::iter::Enumerate;
 
 use aligned_vec::ABox;
 use auto_base_conv::AES_SET_2;
@@ -16,10 +15,9 @@ use auto_base_conv::{
     get_he_state_byte, get_he_state_byte_mut, glwe_ciphertext_monic_monomial_div_assign,
     keyswitch_lwe_ciphertext_by_glwe_keyswitch, known_rotate_keyed_lut,
     lwe_ciphertext_list_add_assign, lwe_msb_bit_to_glev_by_trace_with_preprocessing, switch_scheme,
-    AesParam, AutomorphKey, AutomorphKeySerializable, FftType, FourierGlweKeyswitchKey,
-    GlweKeyswitchKeyOwned, AES_TIGHT,
+    AesParam, AutomorphKey, AutomorphKeySerializable, FourierGlweKeyswitchKey,
+    GlweKeyswitchKeyOwned,
 };
-use serde::de::Unexpected::Enum;
 use submission::aes_ref::NUM_ROUNDS;
 use submission::data_struct::AllRdKeys2;
 use submission::{

@@ -2,35 +2,24 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 
-use aes::cipher;
 use aligned_vec::ABox;
-use auto_base_conv::AES_SET_1;
 use auto_base_conv::AES_SET_2;
 use auto_base_conv::convert_lwe_to_glwe_const;
-use auto_base_conv::fourier_glev_ciphertext;
-use auto_base_conv::glwe_keyswitch;
+
 use auto_base_conv::keyswitch_lwe_ciphertext_by_glwe_keyswitch;
 use auto_base_conv::lwe_msb_bit_to_glev_by_trace_with_preprocessing;
 use auto_base_conv::switch_scheme;
 use auto_base_conv::{
     convert_standard_glwe_keyswitch_key_to_fourier, AutomorphKey, AutomorphKeySerializable,
-    FourierGlweKeyswitchKey, GlweKeyswitchKeyOwned, AES_TIGHT,
+    FourierGlweKeyswitchKey, GlweKeyswitchKeyOwned,
 };
-use bincode::de;
 use itertools::izip;
-use submission::{
-    aes_manager::{StateByteMat, BLOCKSIZE_IN_BIT, BYTESIZE, NUM_COLUMNS, NUM_ROWS},
-    data_struct::AllRdKeys,
-    help_fun::get_size_string,
-};
-use tfhe::core_crypto::fft_impl::fft128::crypto::ggsw::cmux;
-use tfhe::core_crypto::fft_impl::fft64::{
-    c64,
-    crypto::{
-        bootstrap::FourierLweBootstrapKeyView,
-        ggsw::{FourierGgswCiphertextListMutView, FourierGgswCiphertextListView},
-    },
-};
+use submission::
+    help_fun::get_size_string
+;
+use tfhe::core_crypto::fft_impl::fft64::
+    c64
+;
 use tfhe::core_crypto::prelude::*;
 
 fn max_of_two<Scalar, Cont, MutCont>(
